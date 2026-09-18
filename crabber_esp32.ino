@@ -1,6 +1,6 @@
 /*
  * ╔══════════════════════════════════════════════════════════════════╗
- * ║              AQUABOT ROV — ESP32 Firmware v2.4                   ║
+ * ║              CRABBER ROV — ESP32 Firmware v2.4                   ║
  * ║──────────────────────────────────────────────────────────────────║
  * ║  Broker  : broker.emqx.io : 8883 (TLS)                          ║
  * ║  Command topics (subscribe to all 3):                            ║
@@ -294,7 +294,7 @@ void setup() {
   delay(300);
   Serial.println();
   Serial.println("╔══════════════════════════════════╗");
-  Serial.println("║   AQUABOT ROV  v2.3  Booting     ║");
+  Serial.println("║   CRABBER ROV  v2.3  Booting     ║");
   Serial.println("╚══════════════════════════════════╝");
 
   // ── Buzzer ──────────────────────────────────────────────
