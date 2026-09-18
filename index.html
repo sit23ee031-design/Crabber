@@ -1,0 +1,2274 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>AquaBot ROV — Mission Control</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+      /* ═══════════════════════════════════════════
+   TOKENS
+═══════════════════════════════════════════ */
+      :root {
+        --bg: #e8edf5;
+        --surf: #ffffff;
+        --surf2: #f3f6fb;
+        --bdr: #dde3ee;
+        --bdr2: #c5d0e0;
+
+        --blue: #1a6fd4;
+        --blue-l: #3b82f6;
+        --blue-s: #eff6ff;
+        --blue-m: #dbeafe;
+
+        --teal: #0e7490;
+        --teal-s: #ecfeff;
+        --teal-m: #a5f3fc;
+
+        --green: #15803d;
+        --green-s: #f0fdf4;
+        --green-m: #bbf7d0;
+
+        --amber: #b45309;
+        --amber-s: #fffbeb;
+        --amber-m: #fde68a;
+
+        --red: #b91c1c;
+        --red-s: #fff1f2;
+        --red-m: #fecaca;
+
+        --indigo: #4338ca;
+        --indigo-s: #eef2ff;
+        --indigo-m: #c7d2fe;
+
+        --t1: #0f172a;
+        --t2: #334155;
+        --t3: #8898aa;
+        --t4: #dde3ee;
+
+        --sh:
+          0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.05);
+        --sh2:
+          0 4px 16px rgba(15, 23, 42, 0.1), 0 1px 4px rgba(15, 23, 42, 0.06);
+        --r: 12px;
+        --sans: "Inter", sans-serif;
+        --mono: "JetBrains Mono", monospace;
+      }
+
+      /* ═══════════════════════════════════════════
+   RESET + BASE
+═══════════════════════════════════════════ */
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html,
+      body {
+        height: 100%;
+        background: var(--bg);
+        color: var(--t1);
+        font-family: var(--sans);
+        font-size: 13px;
+        overflow: hidden;
+      }
+      #app {
+        display: grid;
+        grid-template-rows: 52px 1fr;
+        height: 100vh;
+      }
+
+      /* ═══════════════════════════════════════════
+   HEADER
+═══════════════════════════════════════════ */
+      header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 16px;
+        background: var(--surf);
+        border-bottom: 1px solid var(--bdr);
+        box-shadow:
+          0 1px 0 var(--bdr),
+          0 2px 8px rgba(15, 23, 42, 0.05);
+        flex-shrink: 0;
+        z-index: 30;
+      }
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+      }
+      .logo-icon {
+        width: 30px;
+        height: 30px;
+        flex-shrink: 0;
+        border-radius: 8px;
+        background: linear-gradient(145deg, #1a6fd4, #3b82f6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 2px 8px rgba(26, 111, 212, 0.32);
+      }
+      .logo-text {
+        font-weight: 700;
+        font-size: 14px;
+        letter-spacing: -0.3px;
+      }
+      .logo-sub {
+        font-size: 9px;
+        color: var(--t3);
+        letter-spacing: 0.7px;
+        text-transform: uppercase;
+        margin-top: 1px;
+      }
+      .sep {
+        width: 1px;
+        height: 20px;
+        background: var(--bdr2);
+        margin: 0 3px;
+        flex-shrink: 0;
+      }
+      .chip {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 10px;
+        border-radius: 20px;
+        background: var(--surf2);
+        border: 1px solid var(--bdr);
+        font-size: 11px;
+        color: var(--t2);
+        font-weight: 500;
+        white-space: nowrap;
+      }
+      .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--t4);
+        flex-shrink: 0;
+        transition: all 0.3s;
+      }
+      .dot.live {
+        background: var(--green);
+        animation: pulse 2.5s infinite;
+        box-shadow: 0 0 0 3px rgba(21, 128, 61, 0.14);
+      }
+      .dot.dead {
+        background: var(--red);
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          box-shadow: 0 0 0 3px rgba(21, 128, 61, 0.14);
+        }
+        50% {
+          box-shadow: 0 0 0 6px rgba(21, 128, 61, 0.03);
+        }
+      }
+      .h-right {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+      .hs {
+        text-align: right;
+      }
+      .hs-l {
+        font-size: 8px;
+        color: var(--t3);
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+        font-weight: 600;
+      }
+      .hs-v {
+        font-family: var(--mono);
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--t1);
+        margin-top: 1px;
+      }
+
+      /* ═══════════════════════════════════════════
+   3-COLUMN GRID
+   Left: 460px  Middle: 1fr  Right: 196px
+═══════════════════════════════════════════ */
+      .main {
+        display: grid;
+        grid-template-columns: clamp(360px, 36vw, 480px) 1fr clamp(
+            176px,
+            15vw,
+            210px
+          );
+        gap: 10px;
+        padding: 10px;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      /* ═══════════════════════════════════════════
+   CARD
+═══════════════════════════════════════════ */
+      .card {
+        background: var(--surf);
+        border: 1px solid var(--bdr);
+        border-radius: var(--r);
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        box-shadow: var(--sh);
+      }
+      .ch {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 12px;
+        flex-shrink: 0;
+      }
+      .ci {
+        width: 30px;
+        height: 30px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+      .ci-blue {
+        background: var(--blue-s);
+        color: var(--blue);
+      }
+      .ci-teal {
+        background: var(--teal-s);
+        color: var(--teal);
+      }
+      .ci-indigo {
+        background: var(--indigo-s);
+        color: var(--indigo);
+      }
+      .ci-amber {
+        background: var(--amber-s);
+        color: var(--amber);
+      }
+      .ci-green {
+        background: var(--green-s);
+        color: var(--green);
+      }
+      .ci-red {
+        background: var(--red-s);
+        color: var(--red);
+      }
+      .ct {
+        font-weight: 600;
+        font-size: 13px;
+        color: var(--t1);
+        line-height: 1.2;
+      }
+      .cs {
+        font-size: 10px;
+        color: var(--t3);
+        margin-top: 1px;
+      }
+      .mla {
+        margin-left: auto;
+      }
+
+      /* BADGES */
+      .badge {
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.3px;
+        font-family: var(--mono);
+      }
+      .bg {
+        background: var(--green-s);
+        color: var(--green);
+        border: 1px solid var(--green-m);
+      }
+      .br {
+        background: var(--red-s);
+        color: var(--red);
+        border: 1px solid var(--red-m);
+      }
+      .ba {
+        background: var(--amber-s);
+        color: var(--amber);
+        border: 1px solid var(--amber-m);
+      }
+      .bb {
+        background: var(--blue-s);
+        color: var(--blue);
+        border: 1px solid var(--blue-m);
+      }
+      .bo {
+        background: var(--surf2);
+        color: var(--t3);
+        border: 1px solid var(--bdr);
+      }
+      .bt {
+        background: var(--teal-s);
+        color: var(--teal);
+        border: 1px solid var(--teal-m);
+      }
+      .bi {
+        background: var(--indigo-s);
+        color: var(--indigo);
+        border: 1px solid var(--indigo-m);
+      }
+
+      /* STAT ROWS */
+      .sr {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 5px 0;
+        border-bottom: 1px solid var(--bdr);
+      }
+      .sr:last-child {
+        border-bottom: none;
+      }
+      .sl {
+        font-size: 11px;
+        color: var(--t2);
+        font-weight: 500;
+      }
+      .sv {
+        font-family: var(--mono);
+        font-size: 11px;
+        font-weight: 500;
+        color: var(--t1);
+      }
+      .sv.bl {
+        color: var(--blue);
+      }
+      .sv.gr {
+        color: var(--green);
+      }
+      .sv.am {
+        color: var(--amber);
+      }
+      .sv.rd {
+        color: var(--red);
+      }
+      .sv.tl {
+        color: var(--teal);
+      }
+      .sv.in {
+        color: var(--indigo);
+      }
+      .dv {
+        height: 1px;
+        background: var(--bdr);
+        margin: 10px 0;
+        flex-shrink: 0;
+      }
+
+      /* ═══════════════════════════════════════════
+   LEFT COLUMN
+═══════════════════════════════════════════ */
+      .col-l {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      /* Motors side-by-side */
+      .motors {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        flex-shrink: 0;
+      }
+
+      /* DIAL */
+      .dial-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        padding: 2px 0;
+      }
+      .dial-ring-wrap {
+        position: relative;
+        width: 136px;
+        height: 136px;
+      }
+      .dial-ring-wrap svg {
+        width: 100%;
+        height: 100%;
+      }
+      .dial-ctr {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+      }
+      .dial-n {
+        font-family: var(--mono);
+        font-size: 28px;
+        font-weight: 600;
+        color: var(--t1);
+        line-height: 1;
+      }
+      .dial-u {
+        font-size: 9px;
+        color: var(--t3);
+        margin-top: 2px;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        font-weight: 600;
+      }
+      .dbtns {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 7px;
+        width: 100%;
+      }
+      .dbtn {
+        padding: 9px 0;
+        border-radius: 8px;
+        border: 1px solid var(--bdr);
+        background: var(--surf2);
+        color: var(--t2);
+        font-size: 20px;
+        font-weight: 300;
+        cursor: pointer;
+        transition: all 0.14s;
+        user-select: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+        box-shadow: var(--sh);
+      }
+      .dbtn:hover {
+        border-color: var(--blue);
+        color: var(--blue);
+        background: var(--blue-s);
+      }
+      .dbtn:active {
+        transform: scale(0.93);
+        box-shadow: none;
+      }
+
+      /* ── SPEED LOCK — M1 + button hold-to-confirm above 175 PWM ── */
+      #m1-plus-btn.spd-warn {
+        border-color: var(--amber-m);
+        color: var(--amber);
+        background: var(--amber-s);
+      }
+      #m1-plus-btn.spd-warn::before {
+        content: "🔒";
+        font-size: 11px;
+        margin-right: 3px;
+      }
+      #m1-plus-btn.locking {
+        border-color: var(--amber);
+        color: var(--amber);
+        background: var(--amber-s);
+        position: relative;
+        overflow: hidden;
+      }
+      #m1-plus-btn.locking::after {
+        content: "";
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        height: 3px;
+        background: var(--amber);
+        border-radius: 0 0 8px 8px;
+        animation: lockBar 2s linear forwards;
+      }
+      @keyframes lockBar {
+        from {
+          width: 0%;
+        }
+        to {
+          width: 100%;
+        }
+      }
+      #m1-plus-btn.unlocked {
+        border-color: var(--green-m);
+        color: var(--green);
+        background: var(--green-s);
+      }
+      .stbtn {
+        width: 100%;
+        padding: 9px;
+        border-radius: 8px;
+        border: 1px solid var(--bdr);
+        background: var(--surf2);
+        color: var(--t2);
+        font-family: var(--sans);
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.18s;
+        margin-top: 6px;
+        box-shadow: var(--sh);
+        letter-spacing: 0.1px;
+      }
+      .stbtn:hover {
+        border-color: var(--green);
+        color: var(--green);
+        background: var(--green-s);
+      }
+      .stbtn.on {
+        background: var(--green-s);
+        border-color: var(--green-m);
+        color: var(--green);
+      }
+      .stbtn.on:hover {
+        background: var(--red-s);
+        border-color: var(--red-m);
+        color: var(--red);
+      }
+
+      .servo-card {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+      }
+      .servo-body {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        padding: 4px 0 6px;
+        gap: 10px;
+      }
+      .arc-wrap {
+        flex: 1;
+        min-height: 0;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 8px;
+        overflow: hidden;
+      }
+      .arc-wrap canvas {
+        /* Let the canvas keep its natural aspect ratio.
+     width:100% shrinks it to fit; height follows automatically. */
+        width: 100%;
+        height: auto;
+        max-height: 100%;
+        display: block;
+      }
+      .servo-btns {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 8px;
+        width: 100%;
+        flex-shrink: 0;
+      }
+      .sbtn {
+        padding: 10px 0;
+        border-radius: 8px;
+        border: 1px solid var(--bdr);
+        background: var(--surf2);
+        color: var(--t2);
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.14s;
+        text-align: center;
+        box-shadow: var(--sh);
+      }
+      .sbtn:hover {
+        border-color: var(--indigo);
+        color: var(--indigo);
+        background: var(--indigo-s);
+      }
+      .sbtn.ctr:hover {
+        border-color: var(--teal);
+        color: var(--teal);
+        background: var(--teal-s);
+      }
+      .sbtn:active {
+        transform: scale(0.95);
+      }
+
+      /* ═══════════════════════════════════════════
+   MIDDLE COLUMN
+═══════════════════════════════════════════ */
+      .col-m {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        min-height: 0;
+        overflow: hidden;
+      }
+      .sens {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        flex-shrink: 0;
+      }
+      .bnum {
+        font-family: var(--mono);
+        font-size: 32px;
+        font-weight: 700;
+        line-height: 1;
+      }
+      .bunit {
+        font-size: 12px;
+        color: var(--t3);
+        margin-left: 3px;
+      }
+      .ptrack {
+        height: 5px;
+        background: var(--bdr);
+        border-radius: 3px;
+        overflow: hidden;
+        margin: 8px 0 3px;
+      }
+      .pfill {
+        height: 100%;
+        border-radius: 3px;
+        transition:
+          width 0.5s ease,
+          background 0.4s;
+      }
+      .chart-box {
+        flex: 1;
+        min-height: 0;
+        position: relative;
+      }
+
+      /* ═══════════════════════════════════════════
+   RIGHT COLUMN
+   NO overflow — all cards must fit naturally
+   Emergency is ALWAYS last, always visible
+═══════════════════════════════════════════ */
+      .col-r {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      /* Signal bars */
+      .sigbars {
+        display: flex;
+        align-items: flex-end;
+        gap: 3px;
+        height: 20px;
+      }
+      .sbar {
+        width: 6px;
+        border-radius: 2px;
+        background: var(--bdr);
+        transition: background 0.35s;
+      }
+
+      /* Weather grid */
+      .wx-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 5px;
+        margin-top: 2px;
+      }
+      .wx-cell {
+        padding: 6px 8px;
+        background: var(--surf2);
+        border-radius: 8px;
+        border: 1px solid var(--bdr);
+      }
+      .wx-cell-v {
+        font-family: var(--mono);
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--t1);
+      }
+      .wx-cell-l {
+        font-size: 9px;
+        color: var(--t3);
+        margin-top: 1px;
+        font-weight: 500;
+      }
+
+      /* Emergency — no spacer hack, just a natural card at the bottom */
+      .emg-card {
+        flex-shrink: 0;
+      }
+      .kgrid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 7px;
+        margin-bottom: 8px;
+      }
+      .kbtn {
+        padding: 8px 0;
+        border-radius: 8px;
+        border: 1px solid var(--bdr);
+        background: var(--surf2);
+        color: var(--t2);
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.14s;
+        text-align: center;
+        box-shadow: var(--sh);
+      }
+      .kbtn:hover {
+        border-color: var(--red);
+        color: var(--red);
+        background: var(--red-s);
+      }
+      .emg-btn {
+        width: 100%;
+        padding: 11px;
+        border-radius: 9px;
+        background: var(--red-s);
+        border: 1.5px solid var(--red-m);
+        color: var(--red);
+        font-family: var(--sans);
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.18s;
+        letter-spacing: 0.2px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+      }
+      .emg-btn:hover {
+        background: #fee2e2;
+        border-color: var(--red);
+        box-shadow: 0 0 0 3px rgba(185, 28, 28, 0.1);
+      }
+      .emg-btn:active {
+        transform: scale(0.98);
+      }
+
+      /* ── POWER CHIP ── */
+      .pwr-chip {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 4px 12px;
+        border-radius: 20px;
+        background: var(--surf2);
+        border: 1px solid var(--bdr);
+        font-size: 11px;
+        color: var(--t2);
+        white-space: nowrap;
+        font-weight: 500;
+        transition:
+          border-color 0.3s,
+          background 0.3s;
+      }
+      .pwr-chip .pwr-icon {
+        flex-shrink: 0;
+        transition: color 0.3s;
+      }
+      .pwr-chip .pwr-val {
+        font-family: var(--mono);
+        font-weight: 600;
+        color: var(--t1);
+      }
+      .pwr-chip .pwr-bar-track {
+        width: 40px;
+        height: 5px;
+        background: var(--bdr);
+        border-radius: 3px;
+        overflow: hidden;
+      }
+      .pwr-chip .pwr-bar-fill {
+        height: 100%;
+        border-radius: 3px;
+        transition:
+          width 0.4s ease,
+          background 0.3s;
+      }
+      @media (max-width: 1280px) {
+        .main {
+          grid-template-columns: 360px 1fr 190px;
+        }
+        .dial-ring-wrap {
+          width: 120px;
+          height: 120px;
+        }
+      }
+      @media (max-width: 1100px) {
+        .main {
+          grid-template-columns: 320px 1fr 180px;
+          gap: 8px;
+          padding: 8px;
+        }
+        html,
+        body {
+          font-size: 12px;
+        }
+        .dial-ring-wrap {
+          width: 110px;
+          height: 110px;
+        }
+        .dial-n {
+          font-size: 24px;
+        }
+        .bnum {
+          font-size: 28px;
+        }
+      }
+      @media (max-width: 960px) {
+        /* Stack right column below middle */
+        .main {
+          grid-template-columns: 300px 1fr;
+          grid-template-rows: 1fr auto;
+        }
+        .col-r {
+          grid-column: 1/-1;
+          flex-direction: row;
+          flex-wrap: wrap;
+          overflow: visible;
+          gap: 8px;
+        }
+        .col-r .card {
+          flex: 1;
+          min-width: 160px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <!-- ═══════════ HEADER ═══════════ -->
+      <header>
+        <div class="logo">
+          <div class="logo-icon">
+            <svg width="15" height="15" fill="white" viewBox="0 0 24 24">
+              <path
+                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"
+              />
+            </svg>
+          </div>
+          <div>
+            <div class="logo-text">AquaBot ROV</div>
+            <div class="logo-sub">Mission Control</div>
+          </div>
+        </div>
+        <div class="sep"></div>
+        <div class="chip">
+          <div class="dot" id="dot-broker"></div>
+          <span id="lbl-broker">Broker</span>
+        </div>
+        <div class="chip">
+          <div class="dot" id="dot-bot"></div>
+          <span id="lbl-bot">Bot Offline</span>
+        </div>
+        <div class="chip">
+          <svg width="11" height="11" fill="none" viewBox="0 0 24 24">
+            <circle
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              stroke-width="2"
+            />
+            <path
+              d="M12 6v6l4 2"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            />
+          </svg>
+          <span id="h-uptime" style="font-family: var(--mono)">00:00:00</span>
+        </div>
+        <!-- POWER CHIP -->
+        <div class="pwr-chip" id="pwr-chip">
+          <svg
+            class="pwr-icon"
+            id="pwr-icon"
+            width="12"
+            height="12"
+            fill="none"
+            viewBox="0 0 24 24"
+            style="color: var(--t3)"
+          >
+            <path
+              d="M13 2L4.09 12.26a1 1 0 0 0 .91 1.74H11l-1 8 8.91-10.26a1 1 0 0 0-.91-1.74H13l1-8z"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+          <span class="pwr-val" id="pwr-w">24 W</span>
+          <div class="pwr-bar-track">
+            <div
+              class="pwr-bar-fill"
+              id="pwr-bar"
+              style="width: 13%; background: var(--green)"
+            ></div>
+          </div>
+          <span style="color: var(--t3)" id="pwr-pct">13%</span>
+        </div>
+        <div class="h-right">
+          <div class="hs">
+            <div class="hs-l">IP</div>
+            <div class="hs-v" id="h-ip">—</div>
+          </div>
+          <div class="hs">
+            <div class="hs-l">RSSI</div>
+            <div class="hs-v" id="h-rssi">—</div>
+          </div>
+          <div class="hs">
+            <div class="hs-l">Distance</div>
+            <div class="hs-v" id="h-dist">—</div>
+          </div>
+          <div class="hs">
+            <div class="hs-l">Time</div>
+            <div class="hs-v" id="h-time">—</div>
+          </div>
+        </div>
+      </header>
+
+      <!-- ═══════════ MAIN ═══════════ -->
+      <div class="main">
+        <!-- ██ LEFT ██ -->
+        <div class="col-l">
+          <!-- Motors row -->
+          <div class="motors">
+            <!-- THRUSTER M1 -->
+            <div class="card">
+              <div class="ch">
+                <div class="ci ci-blue">
+                  <svg width="14" height="14" fill="none" viewBox="0 0 24 24">
+                    <path
+                      d="M13 2L4.09 12.26a1 1 0 0 0 .91 1.74H11l-1 8 8.91-10.26a1 1 0 0 0-.91-1.74H13l1-8z"
+                      stroke="currentColor"
+                      stroke-width="2.2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <div class="ct">Thruster</div>
+                  <div class="cs">Motor M1</div>
+                </div>
+                <div class="mla">
+                  <span class="badge bo" id="m1-badge">OFF</span>
+                </div>
+              </div>
+              <div class="dial-wrap">
+                <div class="dial-ring-wrap">
+                  <svg viewBox="0 0 136 136" fill="none">
+                    <circle
+                      cx="68"
+                      cy="68"
+                      r="56"
+                      stroke="#e8edf5"
+                      stroke-width="11"
+                    />
+                    <circle
+                      id="m1-ring"
+                      cx="68"
+                      cy="68"
+                      r="56"
+                      stroke="url(#g-m1)"
+                      stroke-width="11"
+                      stroke-linecap="round"
+                      stroke-dasharray="0 352"
+                      stroke-dashoffset="88"
+                      transform="rotate(-90 68 68)"
+                      style="
+                        transition: stroke-dasharray 0.3s ease;
+                        filter: drop-shadow(0 0 6px rgba(26, 111, 212, 0.28));
+                      "
+                    />
+                    <defs>
+                      <linearGradient id="g-m1" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stop-color="#1a6fd4" />
+                        <stop offset="100%" stop-color="#60a5fa" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                  <div class="dial-ctr">
+                    <div class="dial-n" id="m1-num">0</div>
+                    <div class="dial-u">PWM</div>
+                  </div>
+                </div>
+                <div class="dbtns">
+                  <button
+                    class="dbtn"
+                    onmousedown="hold('m1', -25)"
+                    onmouseup="drop()"
+                    onmouseleave="drop()"
+                    ontouchstart="hold('m1',-25)"
+                    ontouchend="drop()"
+                  >
+                    −
+                  </button>
+                  <button
+                    class="dbtn"
+                    id="m1-plus-btn"
+                    onmousedown="hold('m1', +25)"
+                    onmouseup="drop()"
+                    onmouseleave="drop()"
+                    ontouchstart="hold('m1',+25)"
+                    ontouchend="drop()"
+                  >
+                    +
+                  </button>
+                </div>
+                <button class="stbtn" id="m1-sbtn" onclick="toggleM('m1')">
+                  ▶ Start Thruster
+                </button>
+              </div>
+              <div class="dv"></div>
+              <div class="sr">
+                <span class="sl">Speed</span
+                ><span class="sv bl" id="m1-spd">0.00 m/s</span>
+              </div>
+              <div class="sr">
+                <span class="sl">RPM (est.)</span
+                ><span class="sv" id="m1-rpm">0</span>
+              </div>
+            </div>
+
+            <!-- FILTRATION M2 -->
+            <div class="card">
+              <div class="ch">
+                <div class="ci ci-teal">
+                  <svg width="14" height="14" fill="none" viewBox="0 0 24 24">
+                    <path
+                      d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"
+                      stroke="currentColor"
+                      stroke-width="2.2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <div class="ct">Filtration</div>
+                  <div class="cs">Pump M2</div>
+                </div>
+                <div class="mla">
+                  <span class="badge bo" id="m2-badge">OFF</span>
+                </div>
+              </div>
+              <div class="dial-wrap">
+                <div class="dial-ring-wrap">
+                  <svg viewBox="0 0 136 136" fill="none">
+                    <circle
+                      cx="68"
+                      cy="68"
+                      r="56"
+                      stroke="#e8edf5"
+                      stroke-width="11"
+                    />
+                    <circle
+                      id="m2-ring"
+                      cx="68"
+                      cy="68"
+                      r="56"
+                      stroke="url(#g-m2)"
+                      stroke-width="11"
+                      stroke-linecap="round"
+                      stroke-dasharray="0 352"
+                      stroke-dashoffset="88"
+                      transform="rotate(-90 68 68)"
+                      style="
+                        transition: stroke-dasharray 0.3s ease;
+                        filter: drop-shadow(0 0 6px rgba(14, 116, 144, 0.28));
+                      "
+                    />
+                    <defs>
+                      <linearGradient id="g-m2" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stop-color="#0e7490" />
+                        <stop offset="100%" stop-color="#22d3ee" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                  <div class="dial-ctr">
+                    <div class="dial-n" id="m2-num">0</div>
+                    <div class="dial-u">PWM</div>
+                  </div>
+                </div>
+                <div class="dbtns">
+                  <button
+                    class="dbtn"
+                    onmousedown="hold('m2', -25)"
+                    onmouseup="drop()"
+                    onmouseleave="drop()"
+                    ontouchstart="hold('m2',-25)"
+                    ontouchend="drop()"
+                  >
+                    −
+                  </button>
+                  <button
+                    class="dbtn"
+                    onmousedown="hold('m2', +25)"
+                    onmouseup="drop()"
+                    onmouseleave="drop()"
+                    ontouchstart="hold('m2',+25)"
+                    ontouchend="drop()"
+                  >
+                    +
+                  </button>
+                </div>
+                <button class="stbtn" id="m2-sbtn" onclick="toggleM('m2')">
+                  ▶ Start Pump
+                </button>
+              </div>
+              <div class="dv"></div>
+              <div class="sr">
+                <span class="sl">Flow Rate</span
+                ><span class="sv tl" id="m2-flow">0.00 L/min</span>
+              </div>
+              <div class="sr">
+                <span class="sl">Total Filtered</span
+                ><span class="sv" id="m2-total">0.0 L</span>
+              </div>
+            </div>
+          </div>
+          <!-- /motors -->
+
+          <!-- SERVO — fills remaining height -->
+          <div class="card servo-card">
+            <div class="ch">
+              <div class="ci ci-indigo">
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="3" fill="currentColor" />
+                  <path
+                    d="M12 2v3M12 19v3M2 12h3M19 12h3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                  />
+                </svg>
+              </div>
+              <div>
+                <div class="ct">Rudder Servo</div>
+                <div class="cs">±20° per step · range 30°–150°</div>
+              </div>
+              <div class="mla">
+                <span class="badge bi" id="servo-badge">90°</span>
+              </div>
+            </div>
+            <div class="servo-body">
+              <div class="arc-wrap">
+                <canvas id="servo-arc" width="800" height="320"></canvas>
+              </div>
+              <div class="servo-btns">
+                <button class="sbtn" onclick="goServo(-20)">◄ Port</button>
+                <button class="sbtn ctr" onclick="goServo(0)">● Centre</button>
+                <button class="sbtn" onclick="goServo(+20)">Stbd ►</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- /col-l -->
+
+        <!-- ██ MIDDLE ██ -->
+        <div class="col-m">
+          <div class="sens">
+            <!-- TEMPERATURE -->
+            <div class="card">
+              <div class="ch">
+                <div class="ci ci-amber">
+                  <svg width="13" height="13" fill="none" viewBox="0 0 24 24">
+                    <path
+                      d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <div class="ct">Temperature</div>
+                  <div class="cs">Water sensor</div>
+                </div>
+                <div class="mla">
+                  <span class="badge bg" id="temp-badge">NORMAL</span>
+                </div>
+              </div>
+              <div style="display: flex; align-items: baseline">
+                <span class="bnum" id="temp-val" style="color: var(--amber)"
+                  >--.-</span
+                ><span class="bunit">°C</span>
+              </div>
+              <div class="ptrack">
+                <div
+                  class="pfill"
+                  id="temp-bar"
+                  style="width: 0%; background: var(--green)"
+                ></div>
+              </div>
+              <div
+                style="
+                  display: flex;
+                  justify-content: space-between;
+                  font-size: 9px;
+                  color: var(--t3);
+                  font-weight: 600;
+                "
+              >
+                <span>20°C</span><span>45°C</span>
+              </div>
+            </div>
+
+            <!-- WATER PURITY -->
+            <div class="card">
+              <div class="ch">
+                <div class="ci ci-teal">
+                  <svg width="13" height="13" fill="none" viewBox="0 0 24 24">
+                    <path
+                      d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <div class="ct">Water Purity</div>
+                  <div class="cs">ADC 4095 = 100% pure</div>
+                </div>
+                <div class="mla">
+                  <span class="badge bt" id="turb-badge">PURE</span>
+                </div>
+              </div>
+              <div style="display: flex; align-items: baseline">
+                <span class="bnum" id="turb-val" style="color: var(--teal)"
+                  >--.-</span
+                ><span class="bunit">%</span>
+              </div>
+              <div class="ptrack">
+                <div
+                  class="pfill"
+                  id="turb-bar"
+                  style="width: 0%; background: var(--teal)"
+                ></div>
+              </div>
+              <div
+                style="
+                  display: flex;
+                  justify-content: space-between;
+                  font-size: 9px;
+                  color: var(--t3);
+                  font-weight: 600;
+                "
+              >
+                <span>0% Dirty</span><span id="turb-volt">—</span
+                ><span>100% Pure</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card" style="flex: 1; min-height: 0">
+            <div class="ch" style="margin-bottom: 8px">
+              <div
+                class="ci ci-amber"
+                style="width: 26px; height: 26px; border-radius: 7px"
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                  <polyline
+                    points="22 12 18 12 15 21 9 3 6 12 2 12"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </div>
+              <span class="ct" style="font-size: 12px"
+                >Temperature History</span
+              >
+              <div
+                class="mla"
+                style="
+                  font-size: 10px;
+                  color: var(--t3);
+                  font-family: var(--mono);
+                  font-weight: 500;
+                "
+                id="temp-last"
+              >
+                —
+              </div>
+            </div>
+            <div class="chart-box"><canvas id="ch-temp"></canvas></div>
+          </div>
+
+          <div class="card" style="flex: 1; min-height: 0">
+            <div class="ch" style="margin-bottom: 8px">
+              <div
+                class="ci ci-teal"
+                style="width: 26px; height: 26px; border-radius: 7px"
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                  <polyline
+                    points="22 12 18 12 15 21 9 3 6 12 2 12"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </div>
+              <span class="ct" style="font-size: 12px"
+                >Water Purity History</span
+              >
+              <div
+                class="mla"
+                style="
+                  font-size: 10px;
+                  color: var(--t3);
+                  font-family: var(--mono);
+                  font-weight: 500;
+                "
+                id="turb-last"
+              >
+                —
+              </div>
+            </div>
+            <div class="chart-box"><canvas id="ch-turb"></canvas></div>
+          </div>
+        </div>
+        <!-- /col-m -->
+
+        <!-- ██ RIGHT ██ -->
+        <div class="col-r">
+          <!-- SIGNAL -->
+          <div class="card" style="flex-shrink: 0">
+            <div class="ch">
+              <div class="ci ci-green">
+                <svg width="13" height="13" fill="none" viewBox="0 0 24 24">
+                  <path
+                    d="M1.42 9a16 16 0 0 1 21.16 0M5 12.55a11 11 0 0 1 14.08 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </div>
+              <div>
+                <div class="ct">Signal</div>
+                <div class="cs">WiFi · range</div>
+              </div>
+              <div class="mla">
+                <div class="sigbars" id="sigbars">
+                  <div class="sbar" style="height: 4px"></div>
+                  <div class="sbar" style="height: 8px"></div>
+                  <div class="sbar" style="height: 12px"></div>
+                  <div class="sbar" style="height: 16px"></div>
+                  <div class="sbar" style="height: 20px"></div>
+                </div>
+              </div>
+            </div>
+            <div class="sr">
+              <span class="sl">RSSI</span
+              ><span class="sv gr" id="s-rssi">—</span>
+            </div>
+            <div class="sr">
+              <span
+                class="sl"
+                title="d = 10^((−59−RSSI)/25)&#10;Ref: −59 dBm @ 1m, n=2.5"
+                style="
+                  cursor: help;
+                  text-decoration: underline dotted var(--t3);
+                "
+                >Distance ⓘ</span
+              >
+              <span class="sv gr" id="s-dist">—</span>
+            </div>
+            <div class="sr">
+              <span class="sl">Bot IP</span
+              ><span class="sv bl" id="s-ip">—</span>
+            </div>
+          </div>
+
+          <!-- WEATHER (replaces plain location) -->
+          <div class="card" style="flex-shrink: 0">
+            <div class="ch">
+              <div class="ci ci-blue">
+                <svg width="13" height="13" fill="none" viewBox="0 0 24 24">
+                  <path
+                    d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </div>
+              <div style="min-width: 0">
+                <div class="ct">Weather</div>
+                <div
+                  class="cs"
+                  id="wx-loc"
+                  style="
+                    max-width: 90px;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                  "
+                >
+                  Locating…
+                </div>
+              </div>
+              <div class="mla">
+                <span id="wx-icon" style="font-size: 22px; line-height: 1"
+                  >—</span
+                >
+              </div>
+            </div>
+            <div class="wx-grid">
+              <div class="wx-cell">
+                <div class="wx-cell-v" id="wx-temp">—</div>
+                <div class="wx-cell-l">Temp</div>
+              </div>
+              <div class="wx-cell">
+                <div class="wx-cell-v" id="wx-feel">—</div>
+                <div class="wx-cell-l">Feels like</div>
+              </div>
+              <div class="wx-cell">
+                <div class="wx-cell-v" id="wx-hum">—</div>
+                <div class="wx-cell-l">Humidity</div>
+              </div>
+              <div class="wx-cell">
+                <div class="wx-cell-v" id="wx-wind">—</div>
+                <div class="wx-cell-l">Wind</div>
+              </div>
+            </div>
+            <div class="sr" style="margin-top: 7px">
+              <span class="sl">Condition</span
+              ><span class="sv" id="wx-desc" style="font-size: 10px">—</span>
+            </div>
+          </div>
+
+          <!-- SYSTEM -->
+          <div class="card" style="flex-shrink: 0">
+            <div class="ch">
+              <div class="ci ci-blue">
+                <svg width="13" height="13" fill="none" viewBox="0 0 24 24">
+                  <rect
+                    x="2"
+                    y="3"
+                    width="20"
+                    height="14"
+                    rx="2"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  />
+                  <path
+                    d="M8 21h8M12 17v4"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  />
+                </svg>
+              </div>
+              <div>
+                <div class="ct">System</div>
+                <div class="cs">ESP32 reported</div>
+              </div>
+            </div>
+            <div class="sr">
+              <span class="sl">M1 PWM</span
+              ><span class="sv bl" id="s-m1">—</span>
+            </div>
+            <div class="sr">
+              <span
+                class="sl"
+                title="Pump ctrl is inverted. raw 255 = stop.&#10;Effective speed = 255 − raw."
+                style="
+                  cursor: help;
+                  text-decoration: underline dotted var(--t3);
+                "
+                >M2 Effective ⓘ</span
+              >
+              <span class="sv tl" id="s-m2">—</span>
+            </div>
+            <div class="sr">
+              <span class="sl">Servo</span
+              ><span class="sv in" id="s-servo">90°</span>
+            </div>
+          </div>
+
+          <!-- EMERGENCY — always last, always visible, no spacer -->
+          <div class="card emg-card">
+            <div class="ch" style="margin-bottom: 10px">
+              <div class="ci ci-red">
+                <svg width="13" height="13" fill="none" viewBox="0 0 24 24">
+                  <path
+                    d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  />
+                  <path
+                    d="M12 9v4M12 17h.01"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  />
+                </svg>
+              </div>
+              <div class="ct" style="color: var(--red)">Emergency</div>
+            </div>
+            <div class="kgrid">
+              <button class="kbtn" onclick="killM('m1')">■ Thruster</button>
+              <button class="kbtn" onclick="killM('m2')">■ Pump</button>
+            </div>
+            <button class="emg-btn" onclick="doEmergency()">
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24">
+                <path
+                  d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+                  fill="currentColor"
+                  opacity=".15"
+                />
+                <path
+                  d="M12 9v4M12 17h.01"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                />
+              </svg>
+              EMERGENCY STOP
+            </button>
+          </div>
+        </div>
+        <!-- /col-r -->
+      </div>
+    </div>
+
+    <script>
+      /* ═══ CONFIG ═══ */
+      const BROKER = "wss://broker.emqx.io:8084/mqtt";
+      const SUB = "chennai2026/status";
+      const PUBS = ["chennai2026", "96260706", "900398"];
+      const CIRC = 2 * Math.PI * 56; // r=56 ≈ 352
+
+      /* ═══ STATE ═══ */
+      let sAngle = 90,
+        m1v = 0,
+        m2v = 0,
+        m1on = false,
+        m2on = false;
+      let servoLockUntil = 0; // ms timestamp — ignore telemetry servo updates until this time
+      let litres = 0,
+        flowLpm = 0,
+        flowTick = Date.now();
+      let botTimer = null,
+        hT = null,
+        hI = null,
+        lastIP = null,
+        pubIP = null;
+      const MAX = 30,
+        tBuf = { t: [], v: [] },
+        pBuf = { t: [], v: [] };
+
+      /* ═══ MQTT ═══ */
+      const mc = mqtt.connect(BROKER, {
+        clientId: "aq_" + Math.random().toString(36).substr(2, 8),
+        clean: true,
+        reconnectPeriod: 4000,
+        connectTimeout: 12000,
+      });
+      mc.on("connect", () => {
+        dot("broker", 1);
+        mc.subscribe(SUB);
+        // Send safety stops 1.5s after connect.
+        // Reason: HiveMQ broker may have retained messages from a previous session.
+        // When ESP32 subscribes on boot it receives those retained msgs and auto-starts.
+        // Sending explicit stops from browser flushes any stale retained commands.
+        setTimeout(() => {
+          PUBS.forEach((t) => {
+            mc.publish(t, "M1:0", { qos: 1, retain: false });
+            mc.publish(t, "M2:255", { qos: 1, retain: false }); // inverted stop
+          });
+          console.log("[SAFETY] Boot stops sent");
+        }, 1500);
+      });
+      mc.on("reconnect", () => dot("broker", 0));
+      mc.on("offline", () => {
+        dot("broker", 0);
+        dot("bot", 0);
+      });
+      mc.on("error", (e) => console.warn("[MQTT]", e));
+      mc.on("message", (_, m) => {
+        try {
+          onTel(JSON.parse(m.toString()));
+        } catch (e) {}
+      });
+
+      /* ═══ PUBLISH ═══ */
+      function pub(p) {
+        if (!mc.connected) return;
+        PUBS.forEach((t) => mc.publish(t, p, { qos: 1, retain: false }));
+        console.log("[TX]", p);
+      }
+      function cmd(t, v) {
+        if (t === "M1") pub("M1:" + cl(v));
+        else if (t === "M2")
+          pub("M2:" + (255 - cl(v))); // invert for pump controller
+        else if (t === "S")
+          pub("SA:" + Math.round(Math.max(30, Math.min(150, v))));
+        else if (t === "X1") pub("M1:0");
+        else if (t === "X2")
+          pub("M2:255"); // inverted stop
+        else if (t === "EM") pub("EMERGENCY");
+      }
+      function cl(v) {
+        return Math.round(Math.max(0, Math.min(255, v)));
+      }
+
+      /* ═══ HOLD BUTTONS ═══ */
+      const SPEED_LOCK_THR = 175; // PWM threshold requiring hold-to-confirm
+      let m1Unlocked = false; // true = confirmed for this session
+      let lockTimer = null; // 2-s hold confirm timer
+
+      function setMV(w, v) {
+        v = Math.max(0, Math.min(255, v));
+        if (w === "m1") {
+          m1v = v;
+          ringFill("m1", v);
+          $("m1-spd").textContent = ((v / 255) * 1.5).toFixed(2) + " m/s";
+          $("m1-rpm").textContent = Math.round((v / 255) * 3000);
+          if (m1on) cmd("M1", v);
+          updSpeedLockBtn(); // refresh lock button appearance after every value change
+        } else {
+          m2v = v;
+          ringFill("m2", v);
+          flowLpm = (v / 255) * 3.0;
+          $("m2-flow").textContent = flowLpm.toFixed(2) + " L/min";
+          if (m2on) cmd("M2", v);
+        }
+        updatePower();
+      }
+
+      function updSpeedLockBtn() {
+        const btn = $("m1-plus-btn");
+        if (!btn) return;
+        btn.classList.remove("spd-warn", "unlocked");
+        if (m1Unlocked) {
+          btn.classList.add("unlocked"); // green tint — above 175 but confirmed
+        } else if (m1v >= SPEED_LOCK_THR) {
+          btn.classList.add("spd-warn"); // amber lock icon — needs hold to go higher
+        }
+      }
+
+      function hold(w, d) {
+        // Speed lock: M1 + above threshold → require 2 s hold first
+        if (w === "m1" && d > 0 && m1v >= SPEED_LOCK_THR && !m1Unlocked) {
+          startLockHold();
+          return;
+        }
+        setMV(w, (w === "m1" ? m1v : m2v) + d);
+        hT = setTimeout(() => {
+          hI = setInterval(() => setMV(w, (w === "m1" ? m1v : m2v) + d), 120);
+        }, 500);
+      }
+      function drop() {
+        clearTimeout(hT);
+        clearInterval(hI);
+        cancelLockHold();
+      }
+
+      function startLockHold() {
+        const btn = $("m1-plus-btn");
+        btn.classList.remove("spd-warn");
+        btn.classList.add("locking");
+        lockTimer = setTimeout(() => {
+          // 2 s held — confirm unlock for this session
+          m1Unlocked = true;
+          btn.classList.remove("locking");
+          btn.classList.add("unlocked");
+          // Now immediately fire the +25 step
+          setMV("m1", m1v + 25);
+          // Start normal repeat-hold from here
+          hT = setTimeout(() => {
+            hI = setInterval(() => setMV("m1", m1v + 25), 120);
+          }, 500);
+        }, 2000);
+      }
+      function cancelLockHold() {
+        clearTimeout(lockTimer);
+        lockTimer = null;
+        const btn = $("m1-plus-btn");
+        if (!btn) return;
+        btn.classList.remove("locking");
+        // Restore correct state after cancel
+        updSpeedLockBtn();
+      }
+      function resetSpeedLock() {
+        m1Unlocked = false;
+        cancelLockHold();
+        updSpeedLockBtn();
+      }
+
+      /* ═══ MOTOR TOGGLE ═══ */
+      function toggleM(w) {
+        if (w === "m1") {
+          m1on = !m1on;
+          updBtn("m1", m1on);
+          if (m1on) cmd("M1", m1v);
+          else {
+            cmd("X1");
+            resetSpeedLock();
+          }
+        } else {
+          m2on = !m2on;
+          updBtn("m2", m2on);
+          if (m2on) cmd("M2", m2v);
+          else pumpOff();
+        }
+        updatePower();
+      }
+      function killM(w) {
+        if (w === "m1") {
+          m1on = false;
+          updBtn("m1", false);
+          cmd("X1");
+          resetSpeedLock();
+        } else {
+          m2on = false;
+          updBtn("m2", false);
+          pumpOff();
+        }
+        updatePower();
+      }
+      function pumpOff() {
+        cmd("X2");
+        flowLpm = 0;
+        m2on = false;
+        $("m2-flow").textContent = "0.00 L/min";
+        updatePower();
+      }
+      function doEmergency() {
+        m1on = false;
+        m2on = false;
+        flowLpm = 0;
+        updBtn("m1", false);
+        updBtn("m2", false);
+        $("m2-flow").textContent = "0.00 L/min";
+        sAngle = 90;
+        updServo(90);
+        cmd("EM");
+        resetSpeedLock();
+        updatePower();
+      }
+      function updBtn(w, on) {
+        const b = $(`${w}-sbtn`),
+          bx = $(`${w}-badge`);
+        if (on) {
+          b.className = "stbtn on";
+          b.textContent = "■ Stop " + (w === "m1" ? "Thruster" : "Pump");
+          bx.className = "badge bg";
+          bx.textContent = "ON";
+        } else {
+          b.className = "stbtn";
+          b.textContent = "▶ Start " + (w === "m1" ? "Thruster" : "Pump");
+          bx.className = "badge bo";
+          bx.textContent = "OFF";
+        }
+      }
+
+      /* ═══ DIAL RING ═══ */
+      function ringFill(w, v) {
+        const f = (v / 255) * CIRC;
+        $(`${w}-ring`).style.strokeDasharray = `${f} ${CIRC - f + 0.01}`;
+        $(`${w}-num`).textContent = v;
+      }
+
+      /* ═══ SERVO ARC ═══ */
+      const arcCv = $("servo-arc");
+      const actx = arcCv.getContext("2d");
+      function goServo(d) {
+        if (d === 0) sAngle = 90;
+        else sAngle = Math.min(150, Math.max(30, sAngle + d));
+        updServo(sAngle);
+        cmd("S", sAngle);
+        servoLockUntil = Date.now() + 1000;
+      }
+      function updServo(a) {
+        sAngle = a;
+        $("servo-badge").textContent = a + "°";
+        $("s-servo").textContent = a + "°";
+        drawArc(a);
+      }
+      function drawArc(angle) {
+        const W = arcCv.width,
+          H = arcCv.height;
+        const cx = W / 2;
+        // r small enough that arc + stroke + labels all fit inside canvas with margin
+        const r = 230; // fixed radius; canvas is 800 wide so margins = (400-230)=170px each side
+        const cy = H - 38; // baseline near bottom; top of arc = cy-r = 282-230 = 52px from top ✓
+        actx.clearRect(0, 0, W, H);
+
+        /* ── track (full semicircle) ── */
+        actx.beginPath();
+        actx.arc(cx, cy, r, Math.PI, 2 * Math.PI);
+        actx.strokeStyle = "#e8edf5";
+        actx.lineWidth = 16;
+        actx.lineCap = "round";
+        actx.stroke();
+
+        /* ── limit ticks at 30° and 150° ── */
+        for (const a of [30, 150]) {
+          const rad = Math.PI + (a / 180) * Math.PI;
+          actx.beginPath();
+          actx.moveTo(
+            cx + (r - 11) * Math.cos(rad),
+            cy + (r - 11) * Math.sin(rad),
+          );
+          actx.lineTo(
+            cx + (r + 9) * Math.cos(rad),
+            cy + (r + 9) * Math.sin(rad),
+          );
+          actx.strokeStyle = "#c7d2fe";
+          actx.lineWidth = 2.5;
+          actx.lineCap = "round";
+          actx.stroke();
+        }
+
+        /* ── active arc (from 0° → angle, where 0=PORT=180°rad) ── */
+        const end = Math.PI + (angle / 180) * Math.PI;
+        actx.beginPath();
+        actx.arc(cx, cy, r, Math.PI, end);
+        const g = actx.createLinearGradient(cx - r, cy, cx + r, cy);
+        g.addColorStop(0, "#4338ca");
+        g.addColorStop(0.5, "#6366f1");
+        g.addColorStop(1, "#818cf8");
+        actx.strokeStyle = g;
+        actx.lineWidth = 16;
+        actx.lineCap = "round";
+        actx.shadowColor = "rgba(99,102,241,.20)";
+        actx.shadowBlur = 20;
+        actx.stroke();
+        actx.shadowBlur = 0;
+
+        /* ── centre tick at 90° ── */
+        const cR = Math.PI + (90 / 180) * Math.PI;
+        actx.beginPath();
+        actx.moveTo(cx + (r - 12) * Math.cos(cR), cy + (r - 12) * Math.sin(cR));
+        actx.lineTo(cx + (r + 10) * Math.cos(cR), cy + (r + 10) * Math.sin(cR));
+        actx.strokeStyle = "#15803d";
+        actx.lineWidth = 3;
+        actx.lineCap = "round";
+        actx.stroke();
+
+        /* ── needle ── */
+        const nR = Math.PI + (angle / 180) * Math.PI;
+        actx.beginPath();
+        actx.moveTo(cx + 13 * Math.cos(nR), cy + 13 * Math.sin(nR));
+        actx.lineTo(cx + (r - 10) * Math.cos(nR), cy + (r - 10) * Math.sin(nR));
+        actx.strokeStyle = "#1e293b";
+        actx.lineWidth = 3;
+        actx.lineCap = "round";
+        actx.shadowColor = "rgba(15,23,42,.14)";
+        actx.shadowBlur = 7;
+        actx.stroke();
+        actx.shadowBlur = 0;
+
+        /* ── hub ── */
+        actx.beginPath();
+        actx.arc(cx, cy, 10, 0, 2 * Math.PI);
+        actx.fillStyle = "#4338ca";
+        actx.fill();
+        actx.beginPath();
+        actx.arc(cx, cy, 4.5, 0, 2 * Math.PI);
+        actx.fillStyle = "#fff";
+        actx.fill();
+
+        /* ── angle label above centre ── */
+        actx.font = "700 24px 'JetBrains Mono',monospace";
+        actx.fillStyle = "#0f172a";
+        actx.textAlign = "center";
+        actx.fillText(angle + "°", cx, cy - r - 18);
+
+        /* ── PORT / STBD labels — placed exactly at arc endpoints, inset 10px from edge ── */
+        actx.font = "600 13px 'Inter',sans-serif";
+        actx.fillStyle = "#8898aa";
+        actx.textAlign = "center";
+        actx.fillText("PORT", cx - r, cy + 18);
+        actx.fillText("STBD", cx + r, cy + 18);
+      }
+      drawArc(90);
+
+      /* ═══ CHARTS ═══ */
+      Chart.defaults.color = "#94a3b8";
+      Chart.defaults.borderColor = "#f1f5f9";
+      function mkChart(id, label, col, gradTop, yMin, yMax) {
+        return new Chart($(id), {
+          type: "line",
+          data: {
+            labels: [],
+            datasets: [
+              {
+                label,
+                data: [],
+                borderColor: col,
+                borderWidth: 2.5,
+                pointRadius: 0,
+                fill: true,
+                tension: 0.45,
+                backgroundColor: (ctx) => {
+                  const g = ctx.chart.ctx.createLinearGradient(
+                    0,
+                    0,
+                    0,
+                    ctx.chart.ctx.canvas.height,
+                  );
+                  g.addColorStop(0, gradTop || col + "30");
+                  g.addColorStop(1, col + "04");
+                  return g;
+                },
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 600, easing: "easeInOutCubic" },
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                backgroundColor: "#fff",
+                borderColor: "#dde3ee",
+                borderWidth: 1,
+                titleColor: "#64748b",
+                bodyColor: "#0f172a",
+                padding: 9,
+                cornerRadius: 8,
+                displayColors: false,
+                callbacks: {
+                  title: () => "",
+                  label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y}`,
+                },
+              },
+            },
+            scales: {
+              x: { display: false },
+              y: {
+                min: yMin,
+                max: yMax,
+                grid: { color: "#f5f7fb", lineWidth: 1 },
+                ticks: {
+                  color: "#94a3b8",
+                  font: { family: "JetBrains Mono", size: 9 },
+                  maxTicksLimit: 4,
+                  padding: 5,
+                },
+                border: { display: false },
+              },
+            },
+          },
+        });
+      }
+      // Temperature: warm orange-red gradient, soft min/max hint 15-45°C
+      const chT = mkChart(
+        "ch-temp",
+        "Temp °C",
+        "#ea580c",
+        "rgba(234,88,12,.22)",
+        15,
+        45,
+      );
+      // Purity: rich sky-blue gradient, 0-100%
+      const chP = mkChart(
+        "ch-turb",
+        "Purity %",
+        "#0284c7",
+        "rgba(2,132,199,.18)",
+        0,
+        100,
+      );
+
+      function push(buf, v) {
+        const ts = new Date().toLocaleTimeString("en", { hour12: false });
+        buf.t.push(ts);
+        buf.v.push(parseFloat(v));
+        if (buf.t.length > MAX) {
+          buf.t.shift();
+          buf.v.shift();
+        }
+      }
+      setInterval(() => {
+        if (tBuf.v.length) {
+          chT.data.labels = [...tBuf.t];
+          chT.data.datasets[0].data = [...tBuf.v];
+          chT.update();
+          $("temp-last").textContent =
+            tBuf.v[tBuf.v.length - 1].toFixed(1) + " °C";
+        }
+        if (pBuf.v.length) {
+          chP.data.labels = [...pBuf.t];
+          chP.data.datasets[0].data = [...pBuf.v];
+          chP.update();
+          $("turb-last").textContent =
+            pBuf.v[pBuf.v.length - 1].toFixed(1) + " %";
+        }
+      }, 2000);
+
+      /* ═══ TELEMETRY ═══ */
+      function onTel(d) {
+        dot("bot", 1);
+        $("lbl-bot").textContent = "Bot Online";
+        clearTimeout(botTimer);
+        botTimer = setTimeout(() => {
+          dot("bot", 0);
+          $("lbl-bot").textContent = "Bot Offline";
+        }, 6000);
+
+        if (d.temp != null) {
+          const t = parseFloat(d.temp);
+          // DS18B20 returns -127.0 when disconnected — skip invalid readings
+          if (t < -50 || t > 100) {
+            $("temp-badge").className = "badge br";
+            $("temp-badge").textContent = "ERR";
+            $("temp-val").textContent = "--.-";
+          } else {
+            $("temp-val").textContent = t.toFixed(1);
+            const pct = Math.max(0, Math.min(100, ((t - 15) / 30) * 100));
+            bar(
+              "temp-bar",
+              pct,
+              t > 35 ? "var(--red)" : t > 30 ? "var(--amber)" : "var(--green)",
+            );
+            const b = $("temp-badge");
+            if (t > 35) {
+              b.className = "badge br";
+              b.textContent = "HOT";
+            } else if (t > 30) {
+              b.className = "badge ba";
+              b.textContent = "WARM";
+            } else {
+              b.className = "badge bg";
+              b.textContent = "NORMAL";
+            }
+            push(tBuf, t);
+          }
+        }
+        if (d.turb != null) {
+          const pur = Math.min(100, Math.max(0, (+d.turb / 4095) * 100));
+          $("turb-val").textContent = pur.toFixed(1);
+          bar(
+            "turb-bar",
+            pur,
+            pur > 70 ? "var(--teal)" : pur > 40 ? "var(--amber)" : "var(--red)",
+          );
+          const b = $("turb-badge");
+          if (pur > 70) {
+            b.className = "badge bt";
+            b.textContent = "PURE";
+          } else if (pur > 40) {
+            b.className = "badge ba";
+            b.textContent = "MODERATE";
+          } else {
+            b.className = "badge br";
+            b.textContent = "DIRTY";
+          }
+          push(pBuf, pur);
+        }
+        if (d.volt != null)
+          $("turb-volt").textContent = parseFloat(d.volt).toFixed(2) + " V";
+        if (d.rssi != null) {
+          const rssi = +d.rssi,
+            dist = Math.pow(10, (-59 - rssi) / 25).toFixed(1);
+          $("h-rssi").textContent = rssi + " dBm";
+          $("h-dist").textContent = dist + " m";
+          $("s-rssi").textContent = rssi + " dBm";
+          $("s-dist").textContent = dist + " m";
+          sigBars(rssi);
+        }
+        if (d.ip) {
+          $("h-ip").textContent = d.ip;
+          $("s-ip").textContent = d.ip;
+          if (d.ip !== lastIP) {
+            lastIP = d.ip;
+            geo(d.ip);
+          }
+        }
+        if (d.m1 != null) $("s-m1").textContent = d.m1;
+        if (d.m2 != null)
+          $("s-m2").textContent =
+            255 - Math.max(0, Math.min(255, +d.m2)) + " (raw " + d.m2 + ")";
+        if (d.servo != null && Date.now() > servoLockUntil) updServo(+d.servo);
+        if (d.uptime != null) {
+          const s = +d.uptime;
+          $("h-uptime").textContent =
+            pad(Math.floor(s / 3600)) +
+            ":" +
+            pad(Math.floor((s % 3600) / 60)) +
+            ":" +
+            pad(s % 60);
+        }
+      }
+
+      /* ═══ SIGNAL BARS ═══ */
+      function sigBars(rssi) {
+        const bs = document.querySelectorAll("#sigbars .sbar");
+        const lv =
+          rssi > -55 ? 5 : rssi > -65 ? 4 : rssi > -75 ? 3 : rssi > -85 ? 2 : 1;
+        const c = rssi > -65 ? "#15803d" : rssi > -80 ? "#b45309" : "#b91c1c";
+        bs.forEach((b, i) => (b.style.background = i < lv ? c : "#dde3ee"));
+      }
+
+      /* ═══ WEATHER via ip-api (geo) + Open-Meteo (weather) ═══
+   ip-api.com  → HTTP only, but Flask serves on http://localhost:5000 so ✓
+   open-meteo  → HTTPS, no key, CORS ✓
+*/
+      const WX = {
+        0: "☀️ Clear",
+        1: "🌤 Mostly Clear",
+        2: "⛅ Partly Cloudy",
+        3: "☁️ Overcast",
+        45: "🌫 Foggy",
+        48: "🌫 Icy Fog",
+        51: "🌦 Light Drizzle",
+        53: "🌦 Drizzle",
+        55: "🌧 Heavy Drizzle",
+        61: "🌧 Light Rain",
+        63: "🌧 Rain",
+        65: "🌧 Heavy Rain",
+        71: "🌨 Light Snow",
+        73: "🌨 Snow",
+        75: "❄️ Heavy Snow",
+        80: "🌦 Showers",
+        81: "🌧 Showers",
+        82: "⛈ Heavy Showers",
+        95: "⛈ Thunderstorm",
+        96: "⛈ Hail Storm",
+        99: "⛈ Heavy Hail",
+      };
+      function isPriv(ip) {
+        return /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|127\.)/.test(ip);
+      }
+
+      async function geo(botIP) {
+        try {
+          let geoIP = botIP;
+          if (isPriv(botIP)) {
+            /* Bot is on local LAN — use the browser's public exit IP instead */
+            if (!pubIP) {
+              const r = await fetch("https://api.ipify.org?format=json");
+              pubIP = (await r.json()).ip;
+            }
+            geoIP = pubIP;
+          }
+          /* ip-api.com — HTTP works fine when served from Flask on localhost */
+          const gr = await fetch(
+            `http://ip-api.com/json/${geoIP}?fields=status,city,regionName,lat,lon`,
+          );
+          const gd = await gr.json();
+          if (gd.status !== "success") {
+            console.warn("[GEO] failed", gd);
+            return;
+          }
+
+          $("wx-loc").textContent =
+            (gd.city || "") + (gd.regionName ? ", " + gd.regionName : "");
+
+          /* Open-Meteo — free, no key, HTTPS, CORS */
+          const wr = await fetch(
+            `https://api.open-meteo.com/v1/forecast` +
+              `?latitude=${gd.lat}&longitude=${gd.lon}` +
+              `&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code` +
+              `&wind_speed_unit=kmh&timezone=auto`,
+          );
+          const wd = await wr.json();
+          const c = wd.current;
+          const wx = WX[c.weather_code] || "🌡 Code " + c.weather_code;
+          const [icon, ...rest] = wx.split(" ");
+          $("wx-icon").textContent = icon;
+          $("wx-desc").textContent = rest.join(" ");
+          $("wx-temp").textContent = c.temperature_2m + "°C";
+          $("wx-feel").textContent = c.apparent_temperature + "°C";
+          $("wx-hum").textContent = c.relative_humidity_2m + "%";
+          $("wx-wind").textContent = c.wind_speed_10m + " km/h";
+        } catch (e) {
+          console.warn("[GEO/WX]", e);
+        }
+      }
+
+      /* ═══ POWER CALCULATION ═══
+   System spec: 12V, 15A max = 180W total
+   Budget: M1 thruster=9A, M2 pump=4A, base electronics=2A (ESP32+servo+sensors)
+   Formula: P = 12 × (base + m1_pct×9 + m2_pct×4)  [only when motor is ON]
+*/
+      const V_SYS = 12,
+        A_M1 = 9,
+        A_M2 = 4,
+        A_BASE = 2,
+        W_MAX = 180;
+      function updatePower() {
+        const aM1 = m1on ? (m1v / 255) * A_M1 : 0;
+        const aM2 = m2on ? (m2v / 255) * A_M2 : 0;
+        const amps = A_BASE + aM1 + aM2;
+        const watts = amps * V_SYS;
+        const pct = Math.min(100, Math.round((watts / W_MAX) * 100));
+
+        $("pwr-w").textContent = Math.round(watts) + " W";
+        $("pwr-pct").textContent = pct + "%";
+        $("pwr-bar").style.width = pct + "%";
+
+        // Color scale
+        const col =
+          pct > 80 ? "var(--red)" : pct > 50 ? "var(--amber)" : "var(--green)";
+        $("pwr-bar").style.background = col;
+        $("pwr-icon").style.color = col;
+      }
+      // Call on every state change
+      updatePower();
+      setInterval(() => {
+        const now = Date.now();
+        litres += flowLpm * ((now - flowTick) / 60000);
+        flowTick = now;
+        $("m2-total").textContent = litres.toFixed(1) + " L";
+      }, 1000);
+
+      /* ═══ UTILS ═══ */
+      function $(id) {
+        return document.getElementById(id);
+      }
+      function dot(w, on) {
+        $("dot-" + w).className = "dot " + (on ? "live" : "dead");
+      }
+      function bar(id, pct, col) {
+        const e = $(id);
+        e.style.width = pct + "%";
+        e.style.background = col;
+      }
+      function pad(n) {
+        return String(n).padStart(2, "0");
+      }
+      setInterval(
+        () =>
+          ($("h-time").textContent = new Date().toLocaleTimeString("en", {
+            hour12: false,
+          })),
+        1000,
+      );
+    </script>
+  </body>
+</html>
